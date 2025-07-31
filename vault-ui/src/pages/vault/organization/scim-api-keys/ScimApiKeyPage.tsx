@@ -196,6 +196,25 @@ export function ScimApiKeyPage() {
         </form>
       </Form>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Service Provider Details</CardTitle>
+          <CardDescription>
+            The configuration here needs to be inputted into your Identity
+            Provider.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="font-medium text-sm">SCIM Base URL</div>
+            <ValueCopier
+              value={`https://${location.host}/api/scim/v1`}
+              label="SCIM Base URL"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       <DangerZoneCard />
     </PageContent>
   );
