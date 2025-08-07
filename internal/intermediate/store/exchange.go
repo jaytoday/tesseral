@@ -288,15 +288,15 @@ func (s *Store) ExchangeIntermediateSessionForSession(ctx context.Context, req *
 		return nil, fmt.Errorf("create audit log event: %w", err)
 	}
 
-	if err := commit(); err != nil {
-		return nil, err
-	}
-
 	if detailsUpdated {
 		// Send sync user event
-		if err := s.sendSyncUserEvent(ctx, *qUser); err != nil {
+		if err := s.sendSyncUserEvent(ctx, tx, *qUser); err != nil {
 			return nil, fmt.Errorf("send sync user event: %w", err)
 		}
+	}
+
+	if err := commit(); err != nil {
+		return nil, err
 	}
 
 	return &intermediatev1.ExchangeIntermediateSessionForSessionResponse{
@@ -309,7 +309,7 @@ func (s *Store) ExchangeIntermediateSessionForSession(ctx context.Context, req *
 	}, nil
 }
 
-func (s *Store) sendSyncUserEvent(ctx context.Context, qUser queries.User) error {
+func (s *Store) sendSyncUserEvent(ctx context.Context, tx pgx.Tx, qUser queries.User) error {
 	qProjectWebhookSettings, err := s.q.GetProjectWebhookSettings(ctx, authn.ProjectID(ctx))
 	if err != nil {
 		// We want to ignore this error if the project does not have webhook settings
@@ -319,7 +319,11 @@ func (s *Store) sendSyncUserEvent(ctx context.Context, qUser queries.User) error
 		return fmt.Errorf("get project by id: %w", err)
 	}
 
-	message, err := s.svixClient.Message.Create(ctx, qProjectWebhookSettings.AppID, models.MessageIn{
+	if qProjectWebhookSettings.AppID == nil {
+		return nil
+	}
+
+	message, err := s.svixClient.Message.Create(ctx, *qProjectWebhookSettings.AppID, models.MessageIn{
 		EventType: "sync.user",
 		Payload: map[string]interface{}{
 			"type":   "sync.user",

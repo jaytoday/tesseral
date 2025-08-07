@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/riverqueue/river"
 	svix "github.com/svix/svix-webhooks/go"
 	auditlogstore "github.com/tesseral-labs/tesseral/internal/auditlog/store"
 	"github.com/tesseral-labs/tesseral/internal/frontend/store/queries"
@@ -33,6 +34,7 @@ type Store struct {
 	svixClient                 *svix.Svix
 	auditlogStore              *auditlogstore.Store
 	oidc                       *oidcclient.Client
+	riverClient                *river.Client[pgx.Tx]
 }
 
 type NewStoreParams struct {
@@ -46,6 +48,7 @@ type NewStoreParams struct {
 	SvixClient                 *svix.Svix
 	AuditlogStore              *auditlogstore.Store
 	OIDCClient                 *oidcclient.Client
+	RiverClient                *river.Client[pgx.Tx]
 }
 
 func New(p NewStoreParams) *Store {
@@ -64,6 +67,7 @@ func New(p NewStoreParams) *Store {
 		svixClient:                 p.SvixClient,
 		auditlogStore:              p.AuditlogStore,
 		oidc:                       p.OIDCClient,
+		riverClient:                p.RiverClient,
 	}
 
 	return store

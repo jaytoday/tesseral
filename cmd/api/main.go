@@ -18,6 +18,10 @@ import (
 	"github.com/getsentry/sentry-go"
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/google/uuid"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivertype"
+	"github.com/riverqueue/rivercontrib/otelriver"
 	"github.com/ssoready/conf"
 	stripeclient "github.com/stripe/stripe-go/v82/client"
 	svix "github.com/svix/svix-webhooks/go"
@@ -26,6 +30,7 @@ import (
 	"github.com/tesseral-labs/tesseral/internal/backend/gen/tesseral/backend/v1/backendv1connect"
 	backendservice "github.com/tesseral-labs/tesseral/internal/backend/service"
 	backendstore "github.com/tesseral-labs/tesseral/internal/backend/store"
+	"github.com/tesseral-labs/tesseral/internal/backgroundworker/webhookworker"
 	"github.com/tesseral-labs/tesseral/internal/cloudflaredoh"
 	"github.com/tesseral-labs/tesseral/internal/common/accesstoken"
 	"github.com/tesseral-labs/tesseral/internal/common/corstrusteddomains"
@@ -268,6 +273,21 @@ func main() {
 
 	stripeClient := stripeclient.New(config.StripeAPIKey, nil)
 
+	// Register River workers, but never start them from this binary.
+	//
+	// https://riverqueue.com/docs#insert-only-clients
+	riverWorkers := river.NewWorkers()
+	river.AddWorker(riverWorkers, &webhookworker.Worker{})
+	riverClient, err := river.NewClient(riverpgxv5.New(db), &river.Config{
+		Middleware: []rivertype.Middleware{
+			otelriver.NewMiddleware(nil),
+		},
+		Workers: riverWorkers,
+	})
+	if err != nil {
+		panic(fmt.Errorf("create river client: %w", err))
+	}
+
 	commonStore := commonstore.New(commonstore.NewStoreParams{
 		AppAuthRootDomain:     config.AuthAppsRootDomain,
 		DB:                    db,
@@ -309,6 +329,7 @@ func main() {
 		SvixClient:                     svixClient,
 		AuditlogStore:                  &auditlogStore,
 		OIDCClient:                     oidcClient,
+		RiverClient:                    riverClient,
 	})
 	backendConnectPath, backendConnectHandler := backendv1connect.NewBackendServiceHandler(
 		&backendservice.Service{
@@ -338,6 +359,7 @@ func main() {
 		SvixClient:                 svixClient,
 		AuditlogStore:              &auditlogStore,
 		OIDCClient:                 oidcClient,
+		RiverClient:                riverClient,
 	})
 	frontendConnectPath, frontendConnectHandler := frontendv1connect.NewFrontendServiceHandler(
 		&frontendservice.Service{
@@ -375,6 +397,7 @@ func main() {
 		S3:                                s3_,
 		SES:                               ses_,
 		UserContentBaseUrl:                config.UserContentBaseUrl,
+		RiverClient:                       riverClient,
 		S3UserContentBucketName:           config.S3UserContentBucketName,
 		StripeClient:                      stripeClient,
 		SvixClient:                        svixClient,

@@ -119,13 +119,13 @@ func (s *Store) CreateOrganization(ctx context.Context, req *backendv1.CreateOrg
 		return nil, fmt.Errorf("log audit event: %w", err)
 	}
 
-	if err := commit(); err != nil {
-		return nil, fmt.Errorf("commit: %w", err)
+	// Send webhook event
+	if err := s.sendSyncOrganizationEvent(ctx, tx, qOrg); err != nil {
+		return nil, fmt.Errorf("send sync organization event: %w", err)
 	}
 
-	// Send webhook event
-	if err := s.sendSyncOrganizationEvent(ctx, qOrg); err != nil {
-		return nil, fmt.Errorf("send sync organization event: %w", err)
+	if err := commit(); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
 	}
 
 	return &backendv1.CreateOrganizationResponse{Organization: parseOrganization(qProject, qOrg)}, nil
@@ -389,13 +389,13 @@ func (s *Store) UpdateOrganization(ctx context.Context, req *backendv1.UpdateOrg
 		return nil, fmt.Errorf("log audit event: %w", err)
 	}
 
-	if err := commit(); err != nil {
-		return nil, fmt.Errorf("commit: %w", err)
+	// Send webhook event
+	if err := s.sendSyncOrganizationEvent(ctx, tx, qUpdatedOrg); err != nil {
+		return nil, fmt.Errorf("send sync organization event: %w", err)
 	}
 
-	// Send webhook event
-	if err := s.sendSyncOrganizationEvent(ctx, qUpdatedOrg); err != nil {
-		return nil, fmt.Errorf("send sync organization event: %w", err)
+	if err := commit(); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
 	}
 
 	return &backendv1.UpdateOrganizationResponse{Organization: parseOrganization(qProject, qUpdatedOrg)}, nil
@@ -447,13 +447,13 @@ func (s *Store) DeleteOrganization(ctx context.Context, req *backendv1.DeleteOrg
 		return nil, fmt.Errorf("log audit event: %w", err)
 	}
 
-	if err := commit(); err != nil {
-		return nil, fmt.Errorf("commit: %w", err)
+	// Send webhook event
+	if err := s.sendSyncOrganizationEvent(ctx, tx, qOrg); err != nil {
+		return nil, fmt.Errorf("send sync organization event: %w", err)
 	}
 
-	// Send webhook event
-	if err := s.sendSyncOrganizationEvent(ctx, qOrg); err != nil {
-		return nil, fmt.Errorf("send sync organization event: %w", err)
+	if err := commit(); err != nil {
+		return nil, fmt.Errorf("commit: %w", err)
 	}
 
 	return &backendv1.DeleteOrganizationResponse{}, nil
@@ -507,7 +507,7 @@ func (s *Store) EnableOrganizationLogins(ctx context.Context, req *backendv1.Ena
 	return &backendv1.EnableOrganizationLoginsResponse{}, nil
 }
 
-func (s *Store) sendSyncOrganizationEvent(ctx context.Context, qOrg queries.Organization) error {
+func (s *Store) sendSyncOrganizationEvent(ctx context.Context, tx pgx.Tx, qOrg queries.Organization) error {
 	qProjectWebhookSettings, err := s.q.GetProjectWebhookSettings(ctx, authn.ProjectID(ctx))
 	if err != nil {
 		// We want to ignore this error if the project does not have webhook settings
@@ -517,7 +517,11 @@ func (s *Store) sendSyncOrganizationEvent(ctx context.Context, qOrg queries.Orga
 		return fmt.Errorf("get project by id: %w", err)
 	}
 
-	message, err := s.svixClient.Message.Create(ctx, qProjectWebhookSettings.AppID, models.MessageIn{
+	if qProjectWebhookSettings.AppID == nil {
+		return nil
+	}
+
+	message, err := s.svixClient.Message.Create(ctx, *qProjectWebhookSettings.AppID, models.MessageIn{
 		EventType: "sync.organization",
 		Payload: map[string]interface{}{
 			"type":           "sync.organization",
