@@ -77,6 +77,7 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -216,6 +217,7 @@ export function ListBackendApiKeysCard() {
                             </HoverCard>
                           </div>
                         </TableHead>
+                        <TableHead>Type</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Created</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -237,6 +239,15 @@ export function ListBackendApiKeysCard() {
                               value={key.id}
                               label="Backend API Key ID"
                             />
+                          </TableCell>
+                          <TableCell>
+                            {key.authenticationOnly ? (
+                              <Badge variant="secondary">
+                                Authentication Only
+                              </Badge>
+                            ) : (
+                              <Badge>Full Access</Badge>
+                            )}
                           </TableCell>
                           <TableCell>
                             {key.revoked ? (
@@ -418,6 +429,7 @@ function ManageBackendApiKeyButton({
 
 const schema = z.object({
   displayName: z.string().min(1, "Display name is required"),
+  authenticationOnly: z.boolean(),
 });
 
 function CreateBackendApiKeyButton() {
@@ -441,6 +453,7 @@ function CreateBackendApiKeyButton() {
     resolver: zodResolver(schema),
     defaultValues: {
       displayName: "",
+      authenticationOnly: false,
     },
   });
 
@@ -463,6 +476,7 @@ function CreateBackendApiKeyButton() {
     const { backendApiKey } = await createBackendApiKeyMutation.mutateAsync({
       backendApiKey: {
         displayName: data.displayName,
+        authenticationOnly: data.authenticationOnly,
       },
     });
     if (backendApiKey) {
@@ -509,6 +523,26 @@ function CreateBackendApiKeyButton() {
                       <FormMessage />
                       <FormControl>
                         <Input placeholder="My Backend API Key" {...field} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="authenticationOnly"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Authentication Only</FormLabel>
+                      <FormDescription>
+                        If enabled, this API key can only be used for
+                        authentication.
+                      </FormDescription>
+                      <FormMessage />
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
                       </FormControl>
                     </FormItem>
                   )}
